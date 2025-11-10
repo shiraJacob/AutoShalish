@@ -6,7 +6,7 @@
 
 A data-driven web application for military HR data that automates the reconciliation, validation, and updating of personnel Excel reports for military HR workflows.  
 
-📹 A short [example video]() demonstrates the full process: uploading company and battalion reports, running automated validation and reconciliation, and generating updated Excel files and comment summaries.
+📹 A short [example video](HaShalish_video.mp4) demonstrates the full process: uploading company and battalion reports, running automated validation and reconciliation, and generating updated Excel files and comment summaries.
 
 ---
 
