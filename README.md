@@ -13,7 +13,7 @@ A data-driven web application for military HR data that automates the reconcilia
 ## Overview  
 
 Traditional HR reporting in large organizations often relies on manual Excel workflows that are time-consuming, error-prone, and lack centralized visibility.  
-**AutoShalish** provides an automated, data-driven solution that consolidates and validates personnel reports across multiple departments or units — ensuring data integrity and operational efficiency.
+**Auto Shalish** provides an automated, data-driven solution that consolidates and validates personnel reports across multiple departments or units, ensuring data integrity and operational efficiency.
 
 The system executes:  
 - Automatic comparison and synchronization between multiple Excel sources  
@@ -26,7 +26,7 @@ The system executes:
 ## Features  
 
 • **Automated Data Integration:**  
-  Automatically merges company-level Excel files into the central battalion report, aligning shared columns, soldier records, and structure consistency across all inputs.  
+  Automatically merges company-level Excel files into the central battalion report, aligning shared columns, soldier records, and structural consistency across all inputs.  
 
 • **Identity Validation:**  
   Detects duplicate or invalid soldier IDs (non-numeric or incorrect length) and flags any cases requiring manual verification before consolidation.  
@@ -42,8 +42,8 @@ The system executes:
   When conflicts occur, the system determines which data source is valid and updates accordingly while preserving a full audit trail.  
 
 • **Status and Attendance Validation:**  
-  Applies logic-based rules for status fields (e.g., "V", "Released", "Injured", "Absent") and automatically adjusts statuses when conditions are met —  
-  for example, detecting new arrivals, release events, or inconsistencies between attendance and location data.  
+  Applies logic-based rules for status fields (e.g., "V", "Released", "Injured", "Absent") and automatically adjusts statuses when conditions are met.  
+  For example, detecting new arrivals, release events, or inconsistencies between attendance and location data.  
 
 • **Anomaly Detection:**  
   Highlights irregular reporting cases such as soldiers marked as active but located off-base, mismatched dates, or invalid daily statuses.  
@@ -51,13 +51,13 @@ The system executes:
 
 • **Automated Comment Report Generation:**  
   Generates a dedicated Excel report summarizing all issues found during processing, including invalid data, structural mismatches, and missing fields.  
-  Each record includes soldier identifiers, unit hierarchy, description of the issue, and priority level for follow-up.  
+  Each record includes soldier identifiers, unit hierarchy, a description of the issue, and priority level for follow-up.  
 
 • **Color-Coded Excel Output:**  
   Produces fully formatted Excel outputs with conditional highlighting and RTL layout, ready for operational use and review.  
 
 • **User-Friendly Web Interface:**  
-  The Streamlit interface allows easy uploading of reports, execution of validation, and downloading of updated Excel outputs — no technical background required.  
+  The Streamlit interface allows easy uploading of reports, running validations, and downloading updated Excel outputs with no technical background required.  
 
 ---
 
@@ -103,18 +103,18 @@ The system executes:
 - Provides full transparency and traceability for every record change  
 - Generates a color-coded follow-up report for efficient HR handling  
 - Enables faster and more accurate decision-making within the HR chain of command  
-- Requires no technical expertise — ready to use via a simple web interface  
+- Requires no technical expertise and is ready to use via a simple web interface  
 
 ---
 
 ## What I Learned  
 
-- Designed an **end-to-end system** — from concept and requirement gathering to full implementation using Python and Streamlit.  
+- Designed an **end-to-end system**, from concept and requirement gathering to full implementation using Python and Streamlit.  
 - Acted as both the **developer and the end user**, identifying real operational needs and translating them into practical, data-driven logic.  
 - Built and refined the system through iterative testing and real-time feedback during active deployment.  
 - Gained experience in **deploying and integrating** a new digital tool in a **non-technical environment**, ensuring usability and adoption.  
 - Learned the importance of **clear communication, intuitive UX, and onboarding**, especially when introducing automation tools to field personnel.  
-- Observed how, within days, the team **adopted AutoShalish** as part of their daily workflow, transforming manual HR tracking into a structured, reliable process.  
+- Observed how, within days, the team **adopted Auto Shalish** as part of their daily workflow, transforming manual HR tracking into a structured, reliable process.  
 
 ---
 
