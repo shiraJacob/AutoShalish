@@ -124,5 +124,6 @@ Make sure to install all required packages, and then run:
 
 ```bash
 streamlit run main.py
+```
 
 👥 This project was created by Shira Aronovich.
