@@ -7,18 +7,18 @@ from datetime import datetime
 import re
 from openpyxl.styles import PatternFill, Border, Side
 
-
 ######################### Constant variables #########################
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 valid_reports = ["ח", "ג", "נ", "י", "0", "1", "ימי התארגנות", "משתחרר"]
-# valid_locations = ["אביבים", "תורמוס", "יבא תחתון", "רייצ\'ל", "דובב", "קיסוסית", "מארון א ראס", "שקד"]
-valid_locations = ["ח", "ג", "נ", "י", "0", "עתניאל", "אדוריים", "630", "620", "710", "720", "חורסה", "כרם נגוהות", "בית חגי", "סוסיא", "חוות מעון", "1", "ימי התארגנות"]
+valid_locations = ["אביבים", "תורמוס", "יבא תחתון", "רייצ\'ל", "דובב", "קיסוסית", "מארון א ראס", "שקד", "ירון"]
+
 valid_values = valid_reports + valid_locations
 
-valid_roles = ["קצין", "מט\"ב", "חובש", "נהג משא כבד", "גשש", "נהג קו", "נהג טנק", "טען", "תותחן", "מט\"ק", "לוחם", "יתר"]
+valid_roles = ["קצין", "מט\"ב", "חובש", "נהג משא כבד", "גשש", "נהג קו", "נהג טנק", "טען", "תותחן", "מט\"ק", "לוחם",
+               "יתר", "מפקד D9", "מפעיל D9"]
 valid_sosh = ["סדיר", "מילואים"]
 
 date_columns = ["תאריך התייצבות", "תאריך סיום", "ת.סיום התארגנות"]
@@ -27,12 +27,11 @@ valid_status = ["V", "שוחרר", "התארגנות", "סיים שמ\"פ"]
 shamap_status = ["V", "התארגנות"]
 shamap_reports = valid_locations + ["ח", "ג", "י", "1", "ימי התארגנות", "משתחרר"]
 
-
-DEPARTMENTS_LIST = ["פלוגה מבצעית א'", "פלוגה מבצעית ב'", "פלוגה מבצעית ג'", "פלוגה מסייעת", "מפג\"ד", "פלס\"ם", "אג\"מ"]
+DEPARTMENTS_LIST = ["פלוגה מבצעית א'", "פלוגה מבצעית ב'", "פלוגה מבצעית ג'", "פלוגה מסייעת", "מפג\"ד", "פלס\"ם",
+                    "אג\"מ"]
 
 # עמודות שנרצה להשוות בין השבצק הגדודי לפלוגתי
-fields_to_check = ["שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "התייצב", "סו\"ש", "תפקיד"]
-
+fields_to_check = ["שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "התייצב", "סו\"ש"]  # תפקיד נבדק בנפרד
 
 # valid_AGAM = ["ח", "ג", "נ", "י", "0", "עתניאל" ,"1", "ימי התארגנות"]
 # valid_PALSAM = ["ח", "ג", "נ", "י", "0", "עתניאל", "אדוריים", "630", "620", "710", "720", "חורסה", "כרם נגוהות", "בית חגי", "סוסיא", "חוות מעון", "1", "ימי התארגנות"]
@@ -92,10 +91,11 @@ requests_TO_DEPARTMENT = {
 # }
 
 COMMENT_PRIORITY = {
-    "High": "#f8d7da",    # pastel red
+    "High": "#f8d7da",  # pastel red
     "Medium": "#fff3cd",  # pastel yellow
     "Low": None
 }
+
 
 ############################# Functions #####################################
 
@@ -104,12 +104,23 @@ COMMENT_PRIORITY = {
 def go_to(page_name):
     st.session_state.page = page_name
 
+
 def format_cell(val):
     if pd.isna(val):
         return ""
     if isinstance(val, (pd.Timestamp, datetime)):
         return val.strftime("%d/%m/%y")
     return str(val).strip() if not isinstance(val, float) else str(int(val)).strip()
+
+
+def format_report_column_name(col):
+    col_date = parse_column_date(col)
+
+    if pd.notna(col_date):
+        return col_date.strftime("%d/%m/%y")
+
+    return str(col).strip()
+
 
 # def get_valid_values_by_filename(filename: str):
 #     filename = filename.lower()
@@ -118,6 +129,10 @@ def format_cell(val):
 #             return valid_list
 #     return valid_values
 def render_comments_table(df):
+    if df is None or df.empty:
+        st.info("אין הערות")
+        return
+
     styled_rows = []
     for _, row in df.iterrows():
         color = row.get("Color")
@@ -125,7 +140,7 @@ def render_comments_table(df):
         styled_rows.append(
             f"<tr style='{bg}'>" +
             "".join(f"<td style='white-space: nowrap; padding: 6px 10px;'>{row[col]}</td>"
-                    for col in ["מ.א.", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"]) +
+                    for col in ["מ.א", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"]) +
             "</tr>"
         )
 
@@ -134,7 +149,7 @@ def render_comments_table(df):
         <table style='border-collapse: collapse; width: 100%; direction: rtl; font-size: 14px;'>
             <thead>
                 <tr style='background-color: #f0f0f0; text-align: right;'>
-                    <th style='padding: 8px;'>מ.א.</th>
+                    <th style='padding: 8px;'>מ.א</th>
                     <th style='padding: 8px;'>שם פרטי</th>
                     <th style='padding: 8px;'>שם משפחה</th>
                     <th style='padding: 8px;'>מסגרת ראשית</th>
@@ -152,15 +167,66 @@ def render_comments_table(df):
     st.markdown(html, unsafe_allow_html=True)
 
 
-
-
 ################# Daily Update #################
+BASE_TEXT_COLUMNS = [
+    "מ.א", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית",
+    "התייצב", 'סו"ש', 'סו\"ש', "תפקיד", "מסופח"
+]
+
+
+def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    # ניקוי שמות עמודות
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # איחוד שם עמודה סו"ש
+    if 'סו\"ש' in df.columns and 'סו"ש' not in df.columns:
+        df = df.rename(columns={'סו\"ש': 'סו"ש'})
+
+    # עמודות טקסט
+    for col in BASE_TEXT_COLUMNS:
+        if col in df.columns:
+            df[col] = df[col].astype("object")
+
+    # עמודות תאריך קבועות
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+
+    # עמודות דיווח יומיות = כל כותרת שהיא תאריך
+    for col in df.columns:
+        if pd.notna(parse_column_date(col)):
+            df[col] = df[col].astype("object")
+
+    return df
+
+
+def safe_set_cell(df: pd.DataFrame, idx, col, value):
+    if col not in df.columns:
+        raise KeyError(f"Column '{col}' does not exist")
+
+    if pd.isna(value):
+        df.at[idx, col] = pd.NA
+        return
+
+    if pd.notna(parse_column_date(col)):
+        df.at[idx, col] = normalize_report_value_for_excel(value)
+        return
+
+    if col in BASE_TEXT_COLUMNS:
+        df.at[idx, col] = str(value).strip()
+        return
+
+    df.at[idx, col] = value
+
 
 def is_valid_id(id_number):
     if pd.isna(id_number):
         return False
     id_str = str(id_number).strip()
     return id_str.isdigit() and len(id_str) == 7
+
 
 # ---- Compare two shabzaks ---
 def get_soldier_info(row):
@@ -171,15 +237,37 @@ def get_soldier_info(row):
         str(row.get("מסגרת משנית", "")).strip()
     ]
 
+
 def is_valid_value_for_column(col: str, val: str) -> bool:
     val = str(val).strip()
     if col == "תפקיד":
         return val in valid_roles
-    elif col == "סו\"ש":
+    elif col in ['סו"ש', 'סו\"ש']:
         return val in valid_sosh
     elif col == "התייצב":
         return val in valid_status
     return True
+
+
+def is_row_empty(row):
+    key_fields = ["מ.א", "שם פרטי", "שם משפחה"]
+
+    for field in key_fields:
+        val = row.get(field, None)
+
+        if pd.isna(val):
+            continue
+
+        if isinstance(val, str):
+            normalized = val.strip().lower()
+            if normalized in ["", "nan", "none"]:
+                continue
+
+        return False
+
+    return True
+
+
 # def normalize_date(value):
 #     if pd.isna(value):
 #         return None
@@ -190,34 +278,39 @@ def is_valid_value_for_column(col: str, val: str) -> bool:
 #     except Exception:
 #         return None
 def handle_missing_in_central(df_central, dep_row):
-    id_number = str(dep_row["מ.א."]).strip()
-    central_match = df_central[df_central["מ.א."] == id_number]
+    id_number = str(dep_row["מ.א"]).strip()
+    central_match = df_central[df_central["מ.א"] == id_number]
 
     if central_match.empty:
         if not (id_number.isdigit() and len(id_number) == 7):
-            return df_central, [id_number] + get_soldier_info(dep_row) + ["מ.א. לא תקין, לא התבצע עדכון"], None
+            return df_central, [id_number] + get_soldier_info(dep_row) + ["מ.א לא תקין, לא התבצע עדכון"], None
 
-        common_cols = [col for col in df_central.columns if col in dep_row and col != "מ.א."]
+        common_cols = [col for col in df_central.columns if col in dep_row and col != "מ.א"]
         new_row = {col: dep_row[col] for col in common_cols}
-        new_row["מ.א."] = id_number
+        new_row["מ.א"] = id_number
         df_central = pd.concat([df_central, pd.DataFrame([new_row])], ignore_index=True)
 
-        return df_central, [id_number] + get_soldier_info(dep_row) + ["לא נמצא בגדודי – נוסף על בסיס הפלוגתי"], None
+        return df_central, [id_number] + get_soldier_info(dep_row) + [
+            "לא נמצא בגדודי – נוסף על בסיס הפלוגתי: לוודא סטטוס ותאריך התייצבות"], None
 
     return df_central, None, central_match.index[0]
+
+
 def analyze_suspicious_cases(df_central, df_dep, central_idx, dep_idx, col, central_val, dep_val, run_date):
     suspicious_comments = []
     dep_status = format_cell(df_dep.at[dep_idx, "התייצב"])
     central_status = format_cell(df_central.at[central_idx, "התייצב"])
-    m_col = format_cell(col)
+    m_col = format_report_column_name(col)
     col_date = pd.to_datetime(col, errors="coerce")
     run_date = pd.Timestamp(run_date).normalize()
     if pd.notna(col_date) and col_date.normalize() == run_date:
         if dep_val == "ג" or central_val == "ג":
-            if dep_status not in shamap_status or central_status not in shamap_status :
-                suspicious_comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', לא דווח שהתייצב – לבדוק גימלים")
+            if dep_status not in shamap_status or central_status not in shamap_status:
+                suspicious_comments.append(
+                    f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', לא דווח שהתייצב – לבדוק גימלים")
             else:
-                suspicious_comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', דווח גימלים – לבדוק אישור רופא")
+                suspicious_comments.append(
+                    f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', דווח גימלים – לבדוק אישור רופא")
 
         if dep_val == "נ" or central_val == "נ":
             suspicious_comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', שים לב לנפקדות")
@@ -240,104 +333,163 @@ def analyze_suspicious_cases(df_central, df_dep, central_idx, dep_idx, col, cent
 
     return suspicious_comments
 
-def detect_new_finish_shamap (val, m_col, central_val, dep_val, on_shamap, central_idx,col, run_date):
+
+def get_yesterday_value(df, row_idx, run_date):
+    run_date = pd.Timestamp(run_date).normalize()
+    yesterday_date = run_date - pd.Timedelta(days=1)
+
+    # חיפוש עמודה שתואמת בדיוק לאתמול
+    for col in df.columns:
+        col_date = parse_column_date(col)
+
+        if pd.notna(col_date) and col_date.normalize() == yesterday_date:
+            val = format_cell(df.at[row_idx, col])
+
+            if val in ["", "nan", "None", "NaT"]:
+                return "0"
+
+            return val
+
+    # אם אין עמודה של אתמול
+    return "0"
+
+
+def detect_new_finish_shamap(df_central, today_val, central_idx, col, central_val, dep_val, run_date):
     comments = []
-    col_date = pd.to_datetime(col, errors="coerce")
+
+    col_date = parse_column_date(col)
     run_date = pd.Timestamp(run_date).normalize()
 
-    if not pd.isna(col_date) and col_date.normalize() == run_date:
-        # -- התייצבות חדשה --
-        if not on_shamap and val in shamap_reports:
-            comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :התייצבות חדשה- לעדכן ת.התייצבות ")
-            if val == "ימי התארגנות":
-                df_central.at[central_idx, "התייצב"] = "התארגנות"
-            elif val == "ג":
-                comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :דיווח גימלים לא בשמפ ")
-            else:
-                df_central.at[central_idx, "התייצב"] = "V"
-                if val == "משתחרר":
-                    comments.append(
-                        f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  מסיים שמפ- לבדוק אם התייצב לחד יומי ")
-        # -- סיום שמ"פ --
-        if on_shamap and val not in shamap_reports:
-            comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :נדרש לסגור שמ\"פ  ")
-            if val == "0":
-                df_central.at[central_idx, "התייצב"] = "סיים שמ\"פ"
+    if pd.isna(col_date) or col_date.normalize() != run_date:
+        return comments
+
+    m_col = format_report_column_name(col)
+
+    yesterday_val = get_yesterday_value(df_central, central_idx, run_date)
+
+    # --- התייצבות חדשה ---
+    if yesterday_val not in shamap_reports and today_val in shamap_reports:
+
+        if today_val == "ימי התארגנות":
+            comments.append(
+                f"{m_col}: אתמול='{yesterday_val}', היום='{today_val}' :ימי התארגנות ולא היה בשמפ אתמול - לברר עם הפלוגה")
+            safe_set_cell(df_central, central_idx, "התייצב", "התארגנות")
+        elif today_val == "ג":
+            comments.append(
+                f"{m_col}: אתמול='{yesterday_val}', היום='{today_val}' :דיווח גימלים לא בשמ\"פ - לברר עם הפלוגה")
+        elif today_val == "משתחרר":
+            comments.append(
+                f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}'  מסיים שמ\"פ- לוודא שאכן התייצב לחד יומי ולעדכן ת.סיום")
+        else:
+            comments.append(
+                f"{m_col}: אתמול='{yesterday_val}', היום='{today_val}' :התייצבות חדשה- לעדכן ת.התייצבות")
+            safe_set_cell(df_central, central_idx, "התייצב", "V")
+
+    # --- אתמול משתחרר והיום שוב בשמ"פ ---
+    if yesterday_val == "משתחרר" and today_val not in ["ימי התארגנות", "0", ""]:
+        comments.append(
+            f"{m_col}: אתמול שוחרר והיום בשמ\"פ - לוודא שחרור מול הפלוגה"
+        )
+
+    # --- סיום שמ"פ ---
+    if yesterday_val in shamap_reports and today_val not in shamap_reports:
+        comments.append(
+            f"{m_col}: אתמול='{yesterday_val}', היום='{today_val}' :נדרש לסגור שמ\"פ - עודכן סטטוס התייצבות לסיום שמפ. לעדכן את הקישור, לעדכן ת.סיום ו/או ת.סיום התארגנות "
+        )
+        safe_set_cell(df_central, central_idx, "התייצב", "סיים שמ\"פ")
 
     return comments
+
+
 def compare_and_update_cell(df_central, df_dep, central_idx, dep_idx, col, run_date):
     comments = []
-    central_val = format_cell(df_central.at[central_idx, col])
-    dep_val = format_cell(df_dep.at[dep_idx, col])
+    central_raw = df_central.at[central_idx, col]
+    dep_raw = df_dep.at[dep_idx, col]
+
+    central_val = format_cell(central_raw)
+    dep_val = format_cell(dep_raw)
 
     status_central = format_cell(df_central.at[central_idx, "התייצב"])
     status_dep = format_cell(df_dep.at[dep_idx, "התייצב"])
 
-    on_shamap = status_central in shamap_status or status_dep in shamap_status
+    # on_shamap = status_central in shamap_status or status_dep in shamap_status
+    on_shamap = status_central in shamap_status
 
     is_central_empty = central_val in ["", "nan"]
     is_dep_empty = dep_val in ["", "nan"]
 
     # --- בדיקות חשודות ---
-    comments.extend(analyze_suspicious_cases(df_central, df_dep, central_idx, dep_idx, col, central_val, dep_val, run_date))
+    comments.extend(
+        analyze_suspicious_cases(df_central, df_dep, central_idx, dep_idx, col, central_val, dep_val, run_date))
 
-    # --- השוואה ועדכון ---
-    m_col = format_cell(col)
-    # if not is_dep_empty and dep_val not in valid_values:
-    #     comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בפלוגתי – לא בוצע עדכון")
-    # # --- משתחרר ---
-    # if on_shamap and not is_dep_empty and dep_val == "משתחרר":
-    #     comments.append(
-    #         f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}מסיים שמפ- לחשב התארגנות ")
+    m_col = format_report_column_name(col)
 
     # --- גדודי ריק פלוגתי מלא ---
     if is_central_empty and not is_dep_empty:
+        if dep_val == "ימי התארגנות" and status_central != "התארגנות":
+            comments.append(
+                f"{m_col}: פלוגתי='{dep_val}', דיווח ימי התארגנות - סטטוס התייצבות עודכן להתארגנות, לוודא תאריכי התארגנות")
+            safe_set_cell(df_central, central_idx, "התייצב", "התארגנות")
+
         if dep_val not in valid_values:
-            comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בפלוגתי – לא בוצע עדכון")
+            comments.append(
+                f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בפלוגתי – לא בוצע עדכון, לברר עם הפלוגה")
         else:
-            coms = detect_new_finish_shamap(dep_val, m_col, central_val, dep_val, on_shamap, central_idx, col, run_date)
+            coms = detect_new_finish_shamap(
+                df_central,
+                dep_val,
+                central_idx,
+                col,
+                central_val,
+                dep_val,
+                run_date
+            )
             if coms:
                 comments.extend(coms)
-            df_central.at[central_idx, col] = dep_val
+            safe_set_cell(df_central, central_idx, col, dep_raw)
 
-        # # -- התייצבות חדשה --
-        # if not on_shamap and dep_val in shamap_reports:
-        #     comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :התייצבות חדשה- לעדכן ת.התייצבות ")
-        #     if central_val == "ימי התארגנות" or dep_val == "ימי התארגנות":
-        #         df_central.at[central_idx, "התייצב"] = "התארגנות"
-        #     elif central_val == "ג" or dep_val == "ג":
-        #         comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :דיווח גימלים לא בשמפ ")
-        #     else:
-        #         df_central.at[central_idx, "התייצב"] = "V"
-        #         if dep_val == "משתחרר":
-        #             comments.append(
-        #                 f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  מסיים שמפ- לבדוק אם התייצב לחד יומי ")
-        # # -- סיום שמ"פ --
-        # if on_shamap and dep_val not in shamap_reports:
-        #     comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}  :נדרש לסגור שמ\"פ  ")
-        #     if central_val == "0" or dep_val == "0":
-        #         df_central.at[central_idx, "התייצב"] = "סיים שמ\"פ"
 
 
     # --- גדודי מלא ופלוגתי מלא, לא תואמים ---
     elif not is_central_empty and not is_dep_empty and not (central_val == dep_val):
         if central_val != "ימי התארגנות":
             if dep_val not in valid_values:
-                comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בפלוגתי – לא בוצע עדכון")
+                comments.append(
+                    f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בפלוגתי – לא בוצע עדכון, לברר עם הפלוגה")
             else:
-                coms = detect_new_finish_shamap(dep_val, m_col, central_val, dep_val, on_shamap, central_idx, col, run_date)
+
+                coms = detect_new_finish_shamap(
+                    df_central,
+                    dep_val,
+                    central_idx,
+                    col,
+                    central_val,
+                    dep_val,
+                    run_date
+                )
                 if coms:
                     comments.extend(coms)
-                df_central.at[central_idx, col] = dep_val
+                safe_set_cell(df_central, central_idx, col, dep_raw)
 
     # --- גדודי מלא ופלוגתי ריק ---
     elif not is_central_empty and is_dep_empty:
         if central_val not in valid_values:
-            comments.append(f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בגדודי – לא בוצע עדכון")
+            comments.append(
+                f"{m_col}: גדודי='{central_val}', פלוגתי='{dep_val}', ערך לא חוקי בגדודי ואין דיווח בפלוגתי- לברר עם הפלוגה")
         else:
-            coms = detect_new_finish_shamap(central_val, m_col, central_val, dep_val, on_shamap, central_idx, col, run_date)
-            if coms:
-                comments.extend(coms)
+
+            coms = detect_new_finish_shamap(
+                df_central,
+                central_val,
+                central_idx,
+                col,
+                central_val,
+                dep_val,
+                run_date
+            )
+
+        if coms:
+            comments.extend(coms)
 
     # --- גדודי ריק ופלוגתי ריק אבל החייל בשמ"פ ---
     elif is_central_empty and is_dep_empty and on_shamap:
@@ -360,18 +512,33 @@ def compare_and_update_cell(df_central, df_dep, central_idx, dep_idx, col, run_d
     return comments
 
 
-
 #########################################
 
 def compare_shared_basic_fields(df_central, df_dep, common_ids):
     comments = []
 
+    for col in fields_to_check:
+        if col in df_central.columns:
+            df_central[col] = df_central[col].astype("object")
+        if col in df_dep.columns:
+            df_dep[col] = df_dep[col].astype("object")
+
+    if "תפקיד" in df_central.columns:
+        df_central["תפקיד"] = df_central["תפקיד"].astype("object")
+
+    central_idx_map = df_central.reset_index().set_index("מ.א")["index"].to_dict()
+    dep_idx_map = df_dep.reset_index().set_index("מ.א")["index"].to_dict()
+
     for id_number in common_ids:
         if not is_valid_id(id_number):
             continue
 
-        central_idx = df_central.index[df_central["מ.א."] == id_number][0]
-        dep_idx = df_dep.index[df_dep["מ.א."] == id_number][0]
+        central_idx = central_idx_map.get(id_number)
+        dep_idx = dep_idx_map.get(id_number)
+
+        if central_idx is None or dep_idx is None:
+            continue
+
         dep_info = get_soldier_info(df_dep.loc[dep_idx])
 
         for col in fields_to_check:
@@ -390,39 +557,37 @@ def compare_shared_basic_fields(df_central, df_dep, common_ids):
                     df_central.at[central_idx, col] = dep_val
                     comments.append([id_number] + dep_info + [f"{col}: ריק בגדודי, הושלם לערך '{dep_val}'"])
                 else:
-                    comments.append([id_number] + dep_info + [f"{col}: ריק בגדודי, ערך לא חוקי בפלוגתי ('{dep_val}')– לא הושלם לגדודי "])
+                    comments.append([id_number] + dep_info + [
+                        f"{col}: ריק בגדודי, ערך לא חוקי בפלוגתי ('{dep_val}') – לא הושלם לגדודי"
+                    ])
 
-            # פלוגתי ריק, גדודי מלא - נעדכן לפי גדודי רק אם ערך חוקי
+            # פלוגתי ריק, גדודי מלא - רק בדיקת תקינות של הגדודי
             elif dep_empty and not central_empty:
                 if not is_valid_value_for_column(col, central_val):
-                    comments.append([id_number] + dep_info + [f"{col}: פלוגתי ריק, ערך לא חוקי בגודיד ('{central_val}') – לא הושלם לפלוגתי"])
+                    comments.append([id_number] + dep_info + [
+                        f"{col}: פלוגתי ריק, ערך לא חוקי בגדודי ('{central_val}')"
+                    ])
 
-            # פלוגתי וגדודי מלאים אבל שונים זה מזה - נעדכן לפי גדודי את כל העמודות חוץ ממסגרת משנית שאותה נעדכן לפי פלוגתי
-            elif not central_empty and not dep_empty and not (central_val == dep_val):
-                if is_valid_value_for_column(col, dep_val):
-                    if col == "מסגרת משנית":
-                        df_central.at[central_idx, col] = dep_val
-                        comments.append([id_number] + dep_info + [f"{col}: חוסר התאמה – עודכן לפי הפלוגתי ('{dep_val}')"])
-                    # else:
-                    #     df_dep.at[dep_idx, col] = central_to_dep_map.get(central_val, central_val)
-                       # comments.append([
-                        #    id_number,
-                        #    df_dep.at[dep_idx, "שם פרטי"],
-                        #    df_dep.at[dep_idx, "שם משפחה"],
-                        #    df_dep.at[dep_idx, "מסגרת ראשית"],
-                        #    df_dep.at[dep_idx, "מסגרת משנית"],
-                        #    f"{col}: חוסר התאמה – עודכן לפי הגדודי ('{dep_val}')"
-                       # ])
-                # else:
-                #     comments.append([
-                #         id_number,
-                #         df_dep.at[dep_idx, "שם פרטי"],
-                #         df_dep.at[dep_idx, "שם משפחה"],
-                #         df_dep.at[dep_idx, "מסגרת ראשית"],
-                #         df_dep.at[dep_idx, "מסגרת משנית"],
-                #         f"{col}: אי תאימות - ערך לא חוקי {central_val}  ('{dep_val}') – לא עודכן "
-                #     ])
+            # פלוגתי וגדודי מלאים אבל שונים - רק מסגרת משנית מתעדכנת לפי הפלוגתי
+            elif not central_empty and not dep_empty and central_val != dep_val:
+                if col == "מסגרת משנית" and is_valid_value_for_column(col, dep_val):
+                    df_central.at[central_idx, col] = dep_val
+                    comments.append(
+                        [id_number] + dep_info + [f"{col}: חוסר התאמה – עודכן לפי הפלוגתי ('{dep_val}')"]
+                    )
+
+        # בדיקה נפרדת של תפקיד - רק בגדודי
+        if "תפקיד" in df_central.columns:
+            central_role = format_cell(df_central.at[central_idx, "תפקיד"])
+            central_role_empty = central_role in ["", "nan", "None", "NaT"]
+
+            if not central_role_empty and central_role not in valid_roles:
+                comments.append(
+                    [id_number] + dep_info + [f"תפקיד: ערך לא חוקי בגדודי ('{central_role}')"]
+                )
+
     return comments
+
 
 def get_department_from_filename(filename):
     filename = Path(filename).stem.strip()
@@ -431,70 +596,79 @@ def get_department_from_filename(filename):
             return dept
     return None  # לא מזוהה
 
+
 def clean_id_column(series):
-    return series.apply(lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '', 1).isdigit() else str(x).strip())
+    return series.apply(
+        lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '', 1).isdigit() else str(x).strip())
+
 
 def check_duplicate_ids(df_central, df_dep):
     comments = []
-    duplicated_central = df_central[df_central.duplicated("מ.א.", keep=False)]
-    duplicated_dep = df_dep[df_dep.duplicated("מ.א.", keep=False)]
+    duplicated_central = df_central[df_central.duplicated("מ.א", keep=False)]
+    duplicated_dep = df_dep[df_dep.duplicated("מ.א", keep=False)]
 
     for _, row in duplicated_central.iterrows():
-        comments.append([row["מ.א."]] + get_soldier_info(row) + ["כפילות מ.א. בקובץ גדודי – נדרש בירור"])
+        comments.append([row["מ.א"]] + get_soldier_info(row) + ["כפילות מ.א בקובץ גדודי – נדרש בירור"])
 
     for _, row in duplicated_dep.iterrows():
-        comments.append([row["מ.א."]] + get_soldier_info(row) + ["כפילות מ.א. בקובץ פלוגתי – נדרש בירור"])
+        comments.append([row["מ.א"]] + get_soldier_info(row) + ["כפילות מ.א בקובץ פלוגתי – נדרש בירור"])
 
     return comments
+
 
 def check_valid_departments(df, source_name):
     comments = []
 
     for idx, row in df.iterrows():
+
         raw_val = str(row.get("מסגרת ראשית", "")).strip()
 
         if raw_val not in DEPARTMENTS_LIST:
             comments.append(
-                [row.get("מ.א.", "")] + get_soldier_info(row) + [f"'{raw_val}' אינה מסגרת חוקית ({source_name})"])
+                [row.get("מ.א", "")] + get_soldier_info(row) + [f"'{raw_val}' אינה מסגרת חוקית ({source_name})"])
 
     return comments
+
 
 def add_missing_from_dep(df_central, df_dep, ids_central, ids_dep, common_cols):
     comments = []
     missing_in_central = ids_dep - ids_central
 
     for id_number in missing_in_central:
-        row = df_dep[df_dep["מ.א."] == id_number].iloc[0]
+        row = df_dep[df_dep["מ.א"] == id_number].iloc[0]
 
         if not is_valid_id(id_number):
-            comments.append([id_number] + get_soldier_info(row) + ["מ.א. לא תקין - לא נוסף לשבצק"])
+            comments.append([id_number] + get_soldier_info(row) + ["מ.א לא תקין - לא נוסף לשבצק"])
             continue
         new_row = {col: row[col] for col in common_cols}
-        new_row["מ.א."] = id_number
+        new_row["מ.א"] = id_number
         df_central = pd.concat([df_central, pd.DataFrame([new_row])], ignore_index=True)
-        comments.append([id_number] + get_soldier_info(row) + ["לא נמצא בגדודי – נוסף על בסיס הפלוגתי"])
+        comments.append([id_number] + get_soldier_info(row) + [
+            "לא נמצא בגדודי – נוסף על בסיס הפלוגתי - לוודא סטטוס ותאריך התייצבות"])
 
     return df_central, comments
 
-def add_missing_from_central(df_dep, df_central, ids_dep, ids_central, common_cols):
+
+def add_missing_from_central(df_dep, df_central, ids_dep, ids_central, common_cols, dep_filename):
     comments = []
     missing_in_dep = ids_central - ids_dep
 
-    current_dep_name = get_department_from_filename(dep_file.name)
+    current_dep_name = get_department_from_filename(dep_filename)
 
     for id_number in missing_in_dep:
-        row = df_central[df_central["מ.א."] == id_number].iloc[0]
+        row = df_central[df_central["מ.א"] == id_number].iloc[0]
         if not is_valid_id(id_number):
-            comments.append([id_number] + get_soldier_info(row) + ["מ.א. לא תקין - לא נוסף לשבצק"])
+            comments.append([id_number] + get_soldier_info(row) + [
+                "מ.א לא תקין - לא נוסף לשבצק - לתקן ולהוסיף לפלוגתי דרך האפליקציה"])
             continue
         unit = str(row.get("מסגרת ראשית", "")).strip()
         status = str(row.get("התייצב", "")).strip()
 
         if current_dep_name and unit == current_dep_name and status in shamap_status:
             new_row = {col: row[col] for col in common_cols}
-            new_row["מ.א."] = id_number
+            new_row["מ.א"] = id_number
             df_dep = pd.concat([df_dep, pd.DataFrame([new_row])], ignore_index=True)
-            comments.append([id_number] + get_soldier_info(row) + ["לא נמצא בפלוגתי – נוסף על בסיס הגדודי"])
+            comments.append([id_number] + get_soldier_info(row) + ["לא נמצא בפלוגתי - להוסיף דרך האפליקציה"])
 
     return df_dep, comments
 
@@ -518,6 +692,8 @@ def apply_excel_formatting(worksheet, df):
                                                       min_col=1, max_col=worksheet.max_column), start=1):
         for col_idx, cell in enumerate(row, start=1):
             header_name = worksheet.cell(row=1, column=col_idx).value
+            parsed_header_date = pd.to_datetime(header_name, errors="coerce", dayfirst=True)
+
             # צבע רקע לשורת כותרת
             if row_idx == 1:
                 cell.fill = header_fill
@@ -530,6 +706,10 @@ def apply_excel_formatting(worksheet, df):
             # פורמט תאריך לעמודות תאריך
             if row_idx > 1 and header_name in date_columns:
                 cell.number_format = date_format
+            if row_idx == 1 and pd.notna(parsed_header_date):
+                cell.number_format = date_format
+
+
 def merge_all_sheets(uploaded_file):
     try:
         # טען את כל הגיליונות כ־DataFrames
@@ -548,6 +728,8 @@ def merge_all_sheets(uploaded_file):
     except Exception as e:
         st.error(f"שגיאה באיחוד הגיליונות: {e}")
         return None
+
+
 def split_to_sheets(df):
     df = df.copy()
 
@@ -570,20 +752,75 @@ def split_to_sheets(df):
 
     return result
 
+
+def normalize_report_value_for_excel(val):
+    if pd.isna(val):
+        return ""
+
+    if isinstance(val, float):
+        if val.is_integer():
+            return str(int(val))
+        return str(val).strip()
+
+    if isinstance(val, int):
+        return str(val)
+
+    if isinstance(val, (pd.Timestamp, datetime)):
+        return val.strftime("%d/%m/%Y")
+
+    val_str = str(val).strip()
+
+    try:
+        num = float(val_str)
+        if num.is_integer():
+            return str(int(num))
+    except Exception:
+        pass
+
+    return val_str
+
+
 def prepare_date_columns_for_excel(df):
     df = df.copy()
-    for col in date_columns:
-        if col in df.columns:
+
+    for col in df.columns:
+        parsed_col_date = parse_column_date(col)
+
+        if pd.notna(parsed_col_date):
+            df[col] = df[col].apply(normalize_report_value_for_excel)
+
+        elif col in date_columns:
             df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+
     return df
+
+
+def convert_excel_headers(df):
+    df = df.copy()
+    new_columns = []
+
+    for col in df.columns:
+        parsed_col_date = parse_column_date(col)
+        if pd.notna(parsed_col_date):
+            new_columns.append(parsed_col_date.to_pydatetime())
+        else:
+            new_columns.append(col)
+
+    df.columns = new_columns
+    return df
+
+
 def to_excel_bytes(df, sheet_name):
     df = prepare_date_columns_for_excel(df)
+    df = convert_excel_headers(df)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name=sheet_name)
         worksheet = writer.sheets[sheet_name]
         apply_excel_formatting(worksheet, df)  # ✅ עיצוב מלא
     return output.getvalue()
+
+
 def dict_to_excel_bytes(sheets_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -594,21 +831,39 @@ def dict_to_excel_bytes(sheets_dict):
             worksheet = writer.sheets[safe_sheet_name]
             apply_excel_formatting(worksheet, df)  # ✅ עיצוב מלא
     return output.getvalue()
+
+
 def to_colored_excel(df, sheet_name):
     df = prepare_date_columns_for_excel(df)
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.drop(columns=["Color", "Priority"], errors="ignore").to_excel(writer, index=False, sheet_name=sheet_name)
+        df.drop(columns=["Color", "Priority"], errors="ignore").to_excel(
+            writer, index=False, sheet_name=sheet_name
+        )
         worksheet = writer.sheets[sheet_name]
 
         apply_excel_formatting(worksheet, df)
 
-        # שמור את צבע הרקע של הערות (עמודת "Color")
+        # צביעת עמודת ההערה לפי צבע מהעמודה Color
         for idx, color in enumerate(df.get("Color", []), start=2):
-            if color:
-                fill = PatternFill(start_color=color[1:], end_color=color[1:], fill_type="solid")
-                worksheet.cell(row=idx, column=6).fill = fill
+            if pd.isna(color) or color in [None, ""]:
+                continue
+
+            color = str(color).strip()
+
+            if color.startswith("#"):
+                color = color[1:]
+
+            if len(color) != 6:
+                continue
+
+            fill = PatternFill(
+                start_color=color,
+                end_color=color,
+                fill_type="solid"
+            )
+            worksheet.cell(row=idx, column=6).fill = fill
 
     return output.getvalue()
 
@@ -618,7 +873,7 @@ def get_priority_and_color(comment_text):
     general_patterns = [
         # High
         ("אינה מסגרת חוקית", "High"),
-        ("מ.א. לא תקין", "High"),
+        ("מ.א לא תקין", "High"),
         ("ערך לא חוקי בפלוגתי", "High"),
         ("ערך לא חוקי בגדודי", "High"),
         ("שים לב לנפקדות", "High"),
@@ -627,7 +882,7 @@ def get_priority_and_color(comment_text):
         ("נדרש לסגור שמ\"פ", "High"),
         ("דווח שהתייצב, אך חסר דיווח", "High"),
         ("תאריך התייצבות לא תקין", "High"),
-        ("כפילות מ.א.", "High"),
+        ("כפילות מ.א", "High"),
 
         # Medium
         ("לא נמצא בגדודי", "Medium"),
@@ -647,36 +902,70 @@ def get_priority_and_color(comment_text):
             return level, COMMENT_PRIORITY[level]
 
     return "Low", COMMENT_PRIORITY["Low"]
-def compare_and_update_values(df_central, df_dep, run_date):
-    comments = []
-    current_dep_name = get_department_from_filename(dep_file.name)
 
-    shared_cols = [
-        col for col in df_dep.columns
-        if col in df_central.columns
-           and pd.notna(pd.to_datetime(str(col), errors="coerce", dayfirst=True))
-           and pd.to_datetime(str(col), errors="coerce", dayfirst=True).normalize() <= pd.Timestamp(run_date).normalize()
-    ]
+
+def parse_column_date(col):
+    if isinstance(col, (pd.Timestamp, datetime)):
+        return pd.Timestamp(col)
+
+    col_str = str(col).strip()
+
+    for fmt in ("%d/%m/%Y", "%d/%m/%y", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return pd.to_datetime(col_str, format=fmt)
+        except Exception:
+            pass
+
+    return pd.to_datetime(col_str, errors="coerce", dayfirst=True)
+
+
+def compare_and_update_values(df_central, df_dep, run_date, dep_filename):
+    comments = []
+    current_dep_name = get_department_from_filename(dep_filename)
+
+    shared_cols = []
+    run_date_dt = pd.Timestamp(run_date).normalize()
+
+    for col in df_dep.columns:
+        if col not in df_central.columns:
+            continue
+
+        col_date = parse_column_date(col)
+
+        if pd.notna(col_date) and col_date.normalize() <= run_date_dt:
+            shared_cols.append(col)
+
+    central_idx_map = df_central.reset_index().set_index("מ.א")["index"].to_dict()
+    dep_idx_map = df_dep.reset_index().set_index("מ.א")["index"].to_dict()
 
     for _, dep_row in df_dep.iterrows():
-        id_number = str(dep_row["מ.א."]).strip()
+        id_number = str(dep_row["מ.א"]).strip()
         if not is_valid_id(id_number):
             continue
 
         primary_dep = str(dep_row.get("מסגרת ראשית", "")).strip()
         if current_dep_name and primary_dep != current_dep_name:
             comments.append([
-                                str(dep_row.get("מ.א.", "")).strip()
-                            ] + get_soldier_info(dep_row) + [
-                                f"חייל לא שייך למסגרת הראשית של הקובץ ({primary_dep}) – לא עודכן"])
+                str(dep_row.get("מ.א", "")).strip()
+            ] + get_soldier_info(dep_row) + [
+                f"חייל לא שייך למסגרת הראשית של הקובץ ({primary_dep}) – לא עודכן"
+            ])
             continue
 
-        df_central, comment, central_idx = handle_missing_in_central(df_central, dep_row)
-        if comment:
-            comments.append(comment)
-            continue  # לא קיים בגדודי, נוצר – נעבור לחייל הבא
+        central_idx = central_idx_map.get(id_number)
 
-        dep_idx = df_dep[df_dep["מ.א."] == id_number].index[0]
+        if central_idx is None:
+            df_central, comment, _ = handle_missing_in_central(df_central, dep_row)
+            if comment:
+                comments.append(comment)
+
+            # בגלל שנוספה אולי שורה חדשה - חייבים לרענן מיפוי
+            central_idx_map = df_central.reset_index().set_index("מ.א")["index"].to_dict()
+            continue
+
+        dep_idx = dep_idx_map.get(id_number)
+        if dep_idx is None:
+            continue
 
         for col in shared_cols:
             comparison_comments = compare_and_update_cell(
@@ -685,14 +974,16 @@ def compare_and_update_values(df_central, df_dep, run_date):
             comments.extend([[id_number] + get_soldier_info(dep_row) + [msg] for msg in comparison_comments])
 
     return df_central, df_dep, comments
-def find_and_add_missing_rows(df_central, df_dep):
+
+
+def find_and_add_missing_rows(df_central, df_dep, dep_filename):
     comments = []
 
-    # --- ניקוי וסידור מ.א. ---
-    df_central["מ.א."] = clean_id_column(df_central["מ.א."])
-    df_dep["מ.א."] = clean_id_column(df_dep["מ.א."])
+    # --- ניקוי וסידור מ.א ---
+    df_central["מ.א"] = clean_id_column(df_central["מ.א"])
+    df_dep["מ.א"] = clean_id_column(df_dep["מ.א"])
 
-    # --- בדיקת כפילויות מ.א. ---
+    # --- בדיקת כפילויות מ.א ---
     comments.extend(check_duplicate_ids(df_central, df_dep))
 
     # --- בדיקת תקינות מסגרות ראשיות ---
@@ -700,16 +991,17 @@ def find_and_add_missing_rows(df_central, df_dep):
     comments.extend(check_valid_departments(df_dep, "פלוגתי"))
 
     # --- השוואת מזהים ---
-    ids_central = set(df_central["מ.א."])
-    ids_dep = set(df_dep["מ.א."])
-    common_cols = [col for col in df_central.columns if col in df_dep.columns and col != "מ.א."]
+    ids_central = set(df_central["מ.א"])
+    ids_dep = set(df_dep["מ.א"])
+    common_cols = [col for col in df_central.columns if col in df_dep.columns and col != "מ.א"]
 
     # --- הוספת חיילים חסרים לגדודי ---
     df_central, added_comments_central = add_missing_from_dep(df_central, df_dep, ids_central, ids_dep, common_cols)
     comments.extend(added_comments_central)
 
     # --- הוספת חיילים חסרים למחלקתי ---
-    df_dep, added_comments_dep = add_missing_from_central(df_dep, df_central, ids_dep, ids_central, common_cols)
+    df_dep, added_comments_dep = add_missing_from_central(df_dep, df_central, ids_dep, ids_central, common_cols,
+                                                          dep_filename)
     comments.extend(added_comments_dep)
 
     # --- השוואת ערכים בסיסיים בין רשומות משותפות ---
@@ -718,41 +1010,100 @@ def find_and_add_missing_rows(df_central, df_dep):
 
     return df_central, df_dep, comments
 
-def update_shabzak(df_central, df_dep, run_date, is_PALSAM=False):
+
+def update_shabzak(df_central, df_dep, run_date, dep_filename):
     df_central = df_central.copy()
     df_dep = df_dep.copy()
+
+    df_central = normalize_dataframe(df_central)
+    df_dep = normalize_dataframe(df_dep)
 
     all_comments = []
 
     # שלב 1: הוספת שורות חסרות
-    df_central, df_dep, comments_missing = find_and_add_missing_rows(df_central, df_dep)
+    df_central, df_dep, comments_missing = find_and_add_missing_rows(df_central, df_dep, dep_filename)
     all_comments.extend(comments_missing)
 
     # שלב 2: השוואה ועדכון ערכים
-    df_central, df_dep, comments_updates = compare_and_update_values(df_central, df_dep, run_date)
+    df_central, df_dep, comments_updates = compare_and_update_values(df_central, df_dep, run_date, dep_filename)
     all_comments.extend(comments_updates)
 
-    # יצירת DataFrame להערות
-    comments_df = pd.DataFrame(all_comments, columns=["מ.א.", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"])
-    # הוספת רמת דחיפות וצבע
-    comments_df["Priority"], comments_df["Color"] = zip(*comments_df["הערה"].map(get_priority_and_color))
+    comments_df = pd.DataFrame(
+        all_comments,
+        columns=["מ.א", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"]
+    )
+
+    if not comments_df.empty:
+        comments_df["Priority"], comments_df["Color"] = zip(*comments_df["הערה"].map(get_priority_and_color))
+    else:
+        comments_df["Priority"] = pd.Series(dtype="object")
+        comments_df["Color"] = pd.Series(dtype="object")
 
     # מחזירה קובץ חדש ומעודכן מחולק לגליונות לפי המקורי
-    if is_PALSAM:
-        df_dep = split_to_sheets(df_dep)
-        dep_xlsx = dict_to_excel_bytes(df_dep)
-    else:
-        dep_xlsx = to_excel_bytes(df_dep, "שבצק פלוגתי")
-
     return {
         "df_central": df_central,
-        "df_dep": df_dep,
         "comments_df": comments_df,
         "central_xlsx": to_excel_bytes(df_central, "שבצק גדודי"),
-        "dep_xlsx": dep_xlsx,
         "comments_xlsx": to_colored_excel(comments_df, "הערות")
     }
 
+
+def update_multiple_departments(df_central, dep_files, run_date):
+    df_central = df_central.copy()
+    all_comments = []
+    updated_departments = []
+
+    for dep_file in dep_files:
+        try:
+            if dep_file.name.endswith("csv"):
+                df_dep = pd.read_csv(dep_file)
+            else:
+                df_dep = pd.read_excel(dep_file)
+
+            df_dep = normalize_dataframe(df_dep)
+
+            result = update_shabzak(df_central, df_dep, run_date, dep_file.name)
+            df_central = result["df_central"]
+
+            comments_df = result["comments_df"].copy()
+            if not comments_df.empty:
+                all_comments.append(comments_df)
+
+            current_dep_name = get_department_from_filename(dep_file.name)
+            if current_dep_name and current_dep_name not in updated_departments:
+                updated_departments.append(current_dep_name)
+            elif not current_dep_name:
+                updated_departments.append(Path(dep_file.name).stem)
+
+        except Exception as e:
+            error_df = pd.DataFrame([{
+                "מ.א": "",
+                "שם פרטי": "",
+                "שם משפחה": "",
+                "מסגרת ראשית": "",
+                "מסגרת משנית": "",
+                "הערה": f"שגיאה בעיבוד הקובץ {dep_file.name}: {e}",
+                "Priority": "High",
+                "Color": COMMENT_PRIORITY["High"],
+                "קובץ מקור": dep_file.name
+            }])
+            all_comments.append(error_df)
+
+    if all_comments:
+        comments_df = pd.concat(all_comments, ignore_index=True)
+    else:
+        comments_df = pd.DataFrame(columns=[
+            "מ.א", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית",
+            "הערה", "Priority", "Color", "קובץ מקור"
+        ])
+
+    return {
+        "df_central": df_central,
+        "comments_df": comments_df,
+        "central_xlsx": to_excel_bytes(df_central, "שבצק גדודי"),
+        "comments_xlsx": to_colored_excel(comments_df, "הערות"),
+        "updated_departments": updated_departments
+    }
 
 
 ################# הוספת מסופחים חדשים #################
@@ -763,12 +1114,14 @@ def dep_fromRequest(request_dep):
     request_dep = str(request_dep).strip()
     return requests_TO_DEPARTMENT.get(request_dep, request_dep)
 
+
 def is_approved_request(status):
     if pd.isna(status):
         return False
 
     status = str(status).strip()
-    return status in ["מאושר", "מאושר - יצא צו"]
+    return "מאושר" in status and "לא מאושר" not in status
+
 
 def split_full_name(full_name: str) -> tuple[str, str]:
     if pd.isna(full_name):
@@ -794,8 +1147,8 @@ def split_full_name(full_name: str) -> tuple[str, str]:
     last_name = parts[-1]
     return first_name, last_name
 
-def build_attached_row(df_central, id_number, first_name, last_name, main_framework, secondary_framework):
 
+def build_attached_row(df_central, id_number, first_name, last_name, main_framework, secondary_framework):
     new_row = {col: "" for col in df_central.columns}
 
     new_row["מ.א"] = id_number
@@ -807,6 +1160,7 @@ def build_attached_row(df_central, id_number, first_name, last_name, main_framew
     new_row['סו"ש'] = "מילואים"
 
     return new_row
+
 
 def find_and_add_attached_soldiers(df_central, df_requests):
     comments = []
@@ -820,7 +1174,6 @@ def find_and_add_attached_soldiers(df_central, df_requests):
 
     existing_ids = set(df_central["מ.א"])
 
-
     for _, request_row in df_requests.iterrows():
         id_number = str(request_row.get("מ.א. של החייל הדרוש", "")).strip()
 
@@ -831,16 +1184,15 @@ def find_and_add_attached_soldiers(df_central, df_requests):
 
         soldier_info = [id_number, first_name, last_name, main_framework, secondary_framework]
 
-
-
         if id_number not in existing_ids and is_approved_request(status):
             if not is_valid_id(id_number):
-                comments.append(soldier_info + ["מ.א. לא תקין"])
+                comments.append(soldier_info + ["מ.א לא תקין"])
 
             if main_framework not in DEPARTMENTS_LIST:
                 comments.append(soldier_info + [f"'{main_framework}' אינה מסגרת חוקית  "])
 
-            new_row = build_attached_row(df_central, id_number, first_name, last_name, main_framework, secondary_framework)
+            new_row = build_attached_row(df_central, id_number, first_name, last_name, main_framework,
+                                         secondary_framework)
             df_central = pd.concat([df_central, pd.DataFrame([new_row])], ignore_index=True)
             added_rows.append(new_row)
             existing_ids.add(id_number)
@@ -855,6 +1207,7 @@ def find_and_add_attached_soldiers(df_central, df_requests):
 
     return df_added, comments
 
+
 def update_attached_soldiers(df_central, df_requests):
     df_central = df_central.copy()
     df_requests = df_requests.copy()
@@ -866,7 +1219,7 @@ def update_attached_soldiers(df_central, df_requests):
 
     comments_df = pd.DataFrame(
         all_comments,
-        columns=["מ.א.", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"]
+        columns=["מ.א", "שם פרטי", "שם משפחה", "מסגרת ראשית", "מסגרת משנית", "הערה"]
     )
 
     if not comments_df.empty:
@@ -881,6 +1234,7 @@ def update_attached_soldiers(df_central, df_requests):
         "added_xlsx": to_excel_bytes(df_added, "מסופחים חדשים"),
         "comments_xlsx": to_colored_excel(comments_df, "הערות")
     }
+
 
 ##################################### Platform #################################
 
@@ -900,9 +1254,8 @@ st.markdown("""
         direction: rtl !important;
         text-align: right !important;
     }
-    </style>4
+    </style>
 """, unsafe_allow_html=True)
-
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
@@ -931,42 +1284,34 @@ if st.session_state.page == "home":
 elif st.session_state.page == "daily_update":
     st.markdown("<h1 style='text-align: center;'>עדכון שבצ\"ק יומי - מגן יהונתן 8552</h1>", unsafe_allow_html=True)
 
-
     center_col = st.columns([1, 1, 2, 1, 1])[2]
     with center_col:
         st.image("gdud8552.jpg", width=200)
 
-
     has_existing_daily_run = "df_central" in st.session_state and "run_date" in st.session_state
 
-    # אתחול משתני session_state שנרצה לעקוב אחריהם
+    # אתחול session_state
     if "updated_departments" not in st.session_state:
         st.session_state["updated_departments"] = []
+
     if "central_filename_base" not in st.session_state:
         st.session_state["central_filename_base"] = None
 
-    if "last_dep_filename_base" not in st.session_state:
-        st.session_state["last_dep_filename_base"] = None
-
-
     central_file = None
 
-    # # --- main file ---
-    # central_file = st.file_uploader("בחר שבצק גדודי", type=["xlsx", "xls", "csv"])
-    #
-    # # --- departments files ---
-    # dep_file = st.file_uploader("בחר שבצק פלוגתי", type=["xlsx", "xls", "csv"])
-    #
-    # run_date = st.date_input(
-    #     'בחר תאריך יעד לבדיקה ולעדכון',
-    #     value=st.session_state.get("run_date", datetime.today().date()),
-    #     format="DD/MM/YYYY"
-    # )
-
     if not has_existing_daily_run:
-        central_file = st.file_uploader("**בחר שבצק גדודי**", type=["xlsx", "xls", "csv"], key="daily_central_file")
+        central_file = st.file_uploader(
+            "**בחר שבצק גדודי**",
+            type=["xlsx", "xls", "csv"],
+            key="daily_central_file"
+        )
 
-        dep_file = st.file_uploader("**בחר שבצק פלוגתי**", type=["xlsx", "xls", "csv"], key="daily_dep_file")
+        dep_files = st.file_uploader(
+            "**בחר קבצי שבצק פלוגתיים**",
+            type=["xlsx", "xls", "csv"],
+            accept_multiple_files=True,
+            key="daily_dep_files"
+        )
 
         run_date = st.date_input(
             "**בחר תאריך יעד לבדיקה ולעדכון**",
@@ -974,20 +1319,19 @@ elif st.session_state.page == "daily_update":
             format="DD/MM/YYYY",
             key="daily_run_date"
         )
+
     else:
         saved_run_date = st.session_state["run_date"]
 
         st.markdown("<h4 style='text-align: right;'>📌 סטטוס עדכון יומי</h4>", unsafe_allow_html=True)
-
         st.success(f"מעודכן לתאריך יעד: {saved_run_date.strftime('%d/%m/%Y')}")
-
 
         updated_deps = st.session_state.get("updated_departments", [])
         if updated_deps:
             st.markdown("**פלוגות שעודכנו עד כה:**")
 
             num_cols = 3
-            max_rows = 3
+            max_rows = (len(updated_deps) + num_cols - 1) // num_cols
 
             for row_idx in range(max_rows):
                 cols = st.columns(num_cols)
@@ -1005,7 +1349,7 @@ elif st.session_state.page == "daily_update":
                                     background-color:#d1f7d6;
                                     border:1px solid #28a745;
                                     border-radius:12px;
-                                    padding:4px;
+                                    padding:6px;
                                     text-align:center;
                                     font-weight:600;
                                     color:#155724;
@@ -1018,15 +1362,18 @@ elif st.session_state.page == "daily_update":
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        dep_file = st.file_uploader("**בחר שבצק פלוגתי נוסף**", type=["xlsx", "xls", "csv"], key="daily_dep_file_next")
+        dep_files = st.file_uploader(
+            "**בחר שבצקי פלוגה נוספים**",
+            type=["xlsx", "xls", "csv"],
+            accept_multiple_files=True,
+            key="daily_dep_files_next"
+        )
+
         run_date = saved_run_date
 
-    # --- Run ---
     if st.button("🚀 עדכן שבצק"):
-        # if not central_file or not dep_file:
-        #     st.error("יש להעלות גם קובץ גדודי וגם לפחות קובץ מחלקתי אחד.")
-        if not dep_file:
-            st.error("יש להעלות קובץ שבצק פלוגתי.")
+        if not dep_files:
+            st.error("יש להעלות לפחות קובץ שבצק פלוגתי אחד.")
         elif not has_existing_daily_run and not central_file:
             st.error("יש להעלות גם קובץ שבצק גדודי בריצה הראשונה.")
         else:
@@ -1037,50 +1384,32 @@ elif st.session_state.page == "daily_update":
                     else:
                         df_central = pd.read_excel(central_file)
 
+                    df_central = normalize_dataframe(df_central)
                     st.session_state["central_filename_base"] = Path(central_file.name).stem
 
-                except ValueError as e:
-                    st.error("⚠️ לא נמצא גיליון בשם 'שבצק גדודי'. ודא שהשם מדויק.")
-                    st.stop()
                 except Exception as e:
                     st.error(f"שגיאה בטעינת שבצק גדודי: {e}")
                     st.stop()
             else:
                 df_central = st.session_state["df_central"]
 
-            is_PALSAM = any(keyword in dep_file.name for keyword in ["פלסם","פלס\"ם", "פלס_ם"])
-            if is_PALSAM:
-                st.success("📦 זוהה קובץ פלס\"ם - ההרצה תתבצע בהתאם.")
-                df_dep = merge_all_sheets(dep_file)
-            else:
-                try:
-                    if dep_file.name.endswith("csv"):
-                        df_dep = pd.read_csv(dep_file)
-                    else:
-                        df_dep = pd.read_excel(dep_file)
-                except Exception as e:
-                    st.warning(f"שגיאה בטעינת הקובץ {dep_file.name}: {e}")
-
             st.success("✅ הקבצים נטענו בהצלחה. מוכן להריץ בדיקות.")
 
-
             st.session_state["run_date"] = run_date
-            st.session_state["last_dep_filename_base"] = Path(dep_file.name).stem
-
-            current_dep_name = get_department_from_filename(dep_file.name)
-            if current_dep_name and current_dep_name not in st.session_state["updated_departments"]:
-                st.session_state["updated_departments"].append(current_dep_name)
-
-            result = update_shabzak(df_central, df_dep, run_date, is_PALSAM)
+            with st.spinner("מעדכן שבצ״ק, זה יקח כמה רגעים..."):
+                result = update_multiple_departments(df_central, dep_files, run_date)
+            # result = update_multiple_departments(df_central, dep_files, run_date)
 
             st.session_state["download_ready"] = True
             st.session_state["central_xlsx"] = result["central_xlsx"]
-            st.session_state["dep_xlsx"] = result["dep_xlsx"]
-            st.session_state["comments_df"] = result["comments_df"]
             st.session_state["comments_xlsx"] = result["comments_xlsx"]
+            st.session_state["comments_df"] = result["comments_df"]
             st.session_state["df_central"] = result["df_central"]
 
-            #  שמור הערות מצטברות
+            for dep_name in result["updated_departments"]:
+                if dep_name not in st.session_state["updated_departments"]:
+                    st.session_state["updated_departments"].append(dep_name)
+
             if "all_comments_df" in st.session_state:
                 st.session_state["all_comments_df"] = pd.concat(
                     [st.session_state["all_comments_df"], result["comments_df"]],
@@ -1090,19 +1419,47 @@ elif st.session_state.page == "daily_update":
                 st.session_state["all_comments_df"] = result["comments_df"]
 
     if st.session_state.get("download_ready"):
-        #st.subheader("📥 הורדת קבצים מעודכנים")
+        updated_deps = st.session_state.get("updated_departments", [])
+
+        if updated_deps:
+            st.markdown("<h3 style='text-align: right;'>השבצ\"ק עודכן עבור הפלוגות הבאות</h3>", unsafe_allow_html=True)
+
+            num_cols = 3
+            max_rows = (len(updated_deps) + num_cols - 1) // num_cols
+
+            for row_idx in range(max_rows):
+                cols = st.columns(num_cols)
+
+                for col_idx in range(num_cols):
+                    i = row_idx * num_cols + col_idx
+
+                    if i < len(updated_deps):
+                        dep = updated_deps[i]
+
+                        with cols[col_idx]:
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    background-color:#d1f7d6;
+                                    border:1px solid #28a745;
+                                    border-radius:12px;
+                                    padding:6px;
+                                    text-align:center;
+                                    font-weight:600;
+                                    color:#155724;
+                                ">
+                                    ✔ {dep}
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
         st.markdown("<h3 style='text-align: right;'>📥 הורדת קבצים מעודכנים</h3>", unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
 
         central_filename_base = st.session_state.get("central_filename_base", "שבצק_גדודי")
-        dep_filename_base = st.session_state.get("last_dep_filename_base", "שבצק_פלוגתי")
-
         central_filename = central_filename_base + "_מעודכן.xlsx"
-        dep_filename = dep_filename_base + "_מעודכן.xlsx"
-
-        # central_filename = Path(central_file.name).stem + "_מעודכן.xlsx"
-        # dep_filename = Path(dep_file.name).stem + "_מעודכן.xlsx"
 
         with col1:
             st.download_button(
@@ -1114,51 +1471,37 @@ elif st.session_state.page == "daily_update":
 
         with col2:
             st.download_button(
-                label="📁 הורד שבצ\"ק פלוגתי",
-                data=st.session_state["dep_xlsx"],
-                file_name=dep_filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        with col3:
-            st.download_button(
                 label="📝 הורד דוח הערות",
                 data=to_colored_excel(st.session_state["all_comments_df"], "הערות"),
                 file_name="דוח_הערות.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-        #st.subheader("📋 תצוגת דוח הערות")
         st.markdown("<h3 style='text-align: right;'>📋 תצוגת דוח הערות</h3>", unsafe_allow_html=True)
-
-        #st.dataframe(st.session_state["comments_df"])
         render_comments_table(st.session_state["all_comments_df"])
 
-        if st.button("עדכון פלוגה נוספת"):
+        if st.button("עדכון פלוגות נוספות"):
             st.session_state.pop("download_ready", None)
             st.session_state.pop("central_xlsx", None)
-            st.session_state.pop("dep_xlsx", None)
             st.session_state.pop("comments_xlsx", None)
             go_to("daily_update")
 
     if st.button("⬅️ חזרה למסך הראשי"):
         st.session_state.pop("download_ready", None)
         st.session_state.pop("central_xlsx", None)
-        st.session_state.pop("dep_xlsx", None)
         st.session_state.pop("comments_xlsx", None)
         st.session_state.pop("comments_df", None)
-        st.session_state.pop("df_central",None)
+        st.session_state.pop("df_central", None)
         st.session_state.pop("run_date", None)
         st.session_state.pop("all_comments_df", None)
         st.session_state.pop("updated_departments", None)
         st.session_state.pop("central_filename_base", None)
-        st.session_state.pop("last_dep_filename_base", None)
-
 
         go_to("home")
 
 elif st.session_state.page == "attached_update":
-    st.markdown("<h1 style='text-align: center;'>עדכון חיילים מסופחים בשבצק - מגן יהונתן 8552</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>עדכון חיילים מסופחים בשבצק - מגן יהונתן 8552</h1>",
+                unsafe_allow_html=True)
 
     center_col = st.columns([1, 1, 2, 1, 1])[2]
     with center_col:
@@ -1176,6 +1519,8 @@ elif st.session_state.page == "attached_update":
                     df_central = pd.read_csv(central_file)
                 else:
                     df_central = pd.read_excel(central_file)
+                    df_central = normalize_dataframe(df_central)
+
             except Exception as e:
                 st.error(f"שגיאה בטעינת השבצק הגדודי: {e}")
                 st.stop()
@@ -1185,6 +1530,8 @@ elif st.session_state.page == "attached_update":
                     df_requests = pd.read_csv(requests_file)
                 else:
                     df_requests = pd.read_excel(requests_file)
+                    df_requests = normalize_dataframe(df_requests)
+
             except Exception as e:
                 st.error(f"שגיאה בטעינת קובץ בקשות הסיפוח: {e}")
                 st.stop()
